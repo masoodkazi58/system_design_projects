@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, Request,HTTPException, Depends, status
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing import Annotated
@@ -35,6 +36,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/",name="HOME")
+def home_page(request : Request):
+    return templates.TemplateResponse(request=request,name="banking.html")
+
 
 @app.post("/create_account", response_model=UserResponse)
 def create_account(user_data: CreateAccount, db: DBSession):
