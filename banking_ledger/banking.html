@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LedgerVault — Banking System</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #141720;
+    --card:      #1a1e2a;
+    --border:    #252a38;
+    --gold:      #c9a84c;
+    --gold-dim:  #8a6d2e;
+    --gold-glow: rgba(201,168,76,0.15);
+    --text:      #e8e4dc;
+    --muted:     #6b7280;
+    --green:     #4ade80;
+    --red:       #f87171;
+    --blue:      #60a5fa;
+    --radius:    12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+
+  /* ── Layout ── */
+  .shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 28px 0;
+    position: sticky; top: 0; height: 100vh;
+  }
+
+  .logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .logo-mark {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+  }
+  .logo-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 24px;
+    cursor: pointer;
+    font-size: 13.5px; font-weight: 400;
+    color: var(--muted);
+    border-left: 2px solid transparent;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active {
+    color: var(--gold);
+    border-left-color: var(--gold);
+    background: var(--gold-glow);
+    font-weight: 500;
+  }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+  .session-info {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--muted);
+  }
+  .session-acct {
+    color: var(--gold); font-weight: 500;
+    font-size: 13px; margin-top: 2px;
+  }
+
+  /* ── Main ── */
+  .main { flex: 1; overflow-y: auto; }
+
+  .page { display: none; padding: 40px 48px; animation: fadeUp 0.3s ease; }
+  .page.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Page header ── */
+  .page-header { margin-bottom: 36px; }
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 30px; font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .page-subtitle { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  /* ── Balance display ── */
+  .balance-hero {
+    background: linear-gradient(135deg, #1a1e2a 0%, #1f2438 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px;
+    margin-bottom: 24px;
+    position: relative; overflow: hidden;
+  }
+  .balance-hero::after {
+    content: '₹';
+    position: absolute; right: 24px; top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Playfair Display', serif;
+    font-size: 120px; color: rgba(201,168,76,0.06);
+    line-height: 1;
+  }
+  .balance-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--gold-dim);
+    margin-bottom: 10px;
+  }
+  .balance-amount {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px; font-weight: 700;
+    color: var(--gold);
+    letter-spacing: -0.02em;
+  }
+  .balance-name {
+    font-size: 14px; color: var(--muted);
+    margin-top: 8px; font-weight: 300;
+  }
+
+  /* ── Stats row ── */
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat-value { font-family: 'DM Mono', monospace; font-size: 22px; margin-top: 6px; font-weight: 500; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red   { color: var(--red); }
+  .stat-value.gold  { color: var(--gold); }
+
+  /* ── Forms ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 7px; }
+  .form-group.full { grid-column: 1/-1; }
+
+  label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+  }
+
+  input, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+  input:focus, textarea:focus {
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px var(--gold-glow);
+  }
+  input::placeholder { color: var(--muted); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px; border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-gold {
+    background: var(--gold); color: #0d0f14;
+  }
+  .btn-gold:hover { background: #dbb85a; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(201,168,76,0.3); }
+  .btn-outline {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-outline:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; }
+
+  /* ── Alert / toast ── */
+  #toast {
+    position: fixed; bottom: 32px; right: 32px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 20px;
+    font-size: 13.5px; max-width: 340px;
+    display: flex; align-items: flex-start; gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    transform: translateY(80px); opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 9999;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: rgba(74,222,128,0.4); }
+  #toast.error   { border-color: rgba(248,113,113,0.4); }
+  .toast-icon { font-size: 16px; margin-top: 1px; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted);
+    padding: 12px 16px; text-align: left;
+    background: var(--surface);
+    font-weight: 400;
+  }
+  td { padding: 13px 16px; border-bottom: 1px solid rgba(37,42,56,0.6); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.015); }
+  .txn-type {
+    display: inline-block; padding: 3px 9px;
+    border-radius: 20px; font-size: 11px; font-weight: 500;
+    font-family: 'DM Mono', monospace;
+  }
+  .txn-deposit  { background: rgba(74,222,128,0.1);  color: var(--green); }
+  .txn-withdraw { background: rgba(248,113,113,0.1); color: var(--red); }
+  .txn-transfer_out { background: rgba(248,113,113,0.1); color: var(--red); }
+  .txn-transfer_in  { background: rgba(96,165,250,0.12); color: var(--blue); }
+  .txn-transfer  { background: rgba(96,165,250,0.12); color: var(--blue); }
+  .amt-pos { color: var(--green); font-family: 'DM Mono', monospace; font-weight: 500; }
+  .amt-neg { color: var(--red);   font-family: 'DM Mono', monospace; font-weight: 500; }
+
+  /* ── Login gate ── */
+  #login-gate {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 48px;
+    width: 420px; max-width: 90vw;
+  }
+  .login-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px; font-weight: 700;
+    color: var(--gold); text-align: center;
+    margin-bottom: 6px;
+  }
+  .login-tagline {
+    text-align: center; color: var(--muted);
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 36px;
+  }
+
+  /* ── Section tabs ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 28px; background: var(--surface); border-radius: 10px; padding: 4px; border: 1px solid var(--border); }
+  .tab {
+    flex: 1; padding: 9px 16px; border-radius: 7px;
+    cursor: pointer; font-size: 13px; text-align: center;
+    color: var(--muted); transition: all 0.2s; border: none; background: none;
+  }
+  .tab.active { background: var(--card); color: var(--gold); font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+  /* ── Spinner ── */
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.2); border-top-color: #0d0f14; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Idempotency helper ── */
+  .idem-row { display: flex; gap: 8px; }
+  .idem-row input { flex: 1; }
+  .btn-gen { padding: 11px 14px; font-size: 12px; flex-shrink: 0; border-radius: 8px; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 48px; color: var(--muted); }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .page { padding: 24px 20px; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .balance-amount { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN GATE ══════════════ -->
+<div id="login-gate">
+  <div class="login-box">
+    <div class="login-logo">LedgerVault</div>
+    <div class="login-tagline">Private Banking System</div>
+
+    <div class="tabs" style="margin-bottom:24px;">
+      <button class="tab active" onclick="switchLoginTab('signin')">Sign In</button>
+      <button class="tab" onclick="switchLoginTab('register')">Open Account</button>
+    </div>
+
+    <!-- Sign In -->
+    <div id="login-signin">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Account Number</label>
+        <input type="number" id="l-acct" placeholder="e.g. 1001"/>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label>Password</label>
+        <input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <button class="btn btn-gold" style="width:100%;" onclick="doLogin()" id="login-btn">
+        Access Account
+      </button>
+    </div>
+
+    <!-- Register -->
+    <div id="login-register" style="display:none;">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Full Name</label>
+        <input type="text" id="r-name" placeholder="Arjun Sharma"/>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Email</label>
+        <input type="email" id="r-email" placeholder="arjun@example.com"/>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label>Password</label>
+        <input type="password" id="r-pass" placeholder="Choose a strong password"/>
+      </div>
+      <button class="btn btn-gold" style="width:100%;" onclick="doRegister()" id="reg-btn">
+        Create Account
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">LedgerVault</div>
+      <div class="logo-sub">Banking System</div>
+    </div>
+    <div class="nav-item active" onclick="goPage('dashboard')">
+      <span class="nav-icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="goPage('deposit')">
+      <span class="nav-icon">↓</span> Deposit
+    </div>
+    <div class="nav-item" onclick="goPage('withdraw')">
+      <span class="nav-icon">↑</span> Withdraw
+    </div>
+    <div class="nav-item" onclick="goPage('transfer')">
+      <span class="nav-icon">⇄</span> Transfer
+    </div>
+    <div class="nav-item" onclick="goPage('statement')">
+      <span class="nav-icon">≡</span> Statement
+    </div>
+    <div class="sidebar-footer">
+      <div class="session-info">Logged in as</div>
+      <div class="session-acct" id="sidebar-acct">—</div>
+      <button class="btn btn-outline" style="margin-top:12px;width:100%;font-size:12px;padding:8px;" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <!-- Pages -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">Overview</div>
+        <div class="page-subtitle">Your account at a glance</div>
+      </div>
+
+      <div class="balance-hero" id="balance-hero">
+        <div class="balance-label">Available Balance</div>
+        <div class="balance-amount" id="dash-balance">—</div>
+        <div class="balance-name" id="dash-name">Loading account details…</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Account No.</div>
+          <div class="stat-value gold" id="stat-acct">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Status</div>
+          <div class="stat-value green" id="stat-status">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Email</div>
+          <div class="stat-value" id="stat-email" style="font-size:14px;word-break:break-all;">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recent Transactions</div>
+        <div id="dash-txns"><div class="empty"><div class="empty-icon">📄</div>Load statement to see recent activity</div></div>
+      </div>
+    </div>
+
+    <!-- ── DEPOSIT ── -->
+    <div class="page" id="page-deposit">
+      <div class="page-header">
+        <div class="page-title">Deposit Funds</div>
+        <div class="page-subtitle">Add money to your account</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Deposit Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Account Number</label>
+            <input type="number" id="dep-acct" readonly/>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹)</label>
+            <input type="number" id="dep-amt" placeholder="0.00" min="0.01" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="dep-pass" placeholder="••••••••"/>
+          </div>
+          <div class="form-group">
+            <label>Idempotency Key</label>
+            <div class="idem-row">
+              <input type="text" id="dep-idem" placeholder="Unique transaction ID"/>
+              <button class="btn btn-outline btn-gen" onclick="genKey('dep-idem')">⟳ Gen</button>
+            </div>
+          </div>
+          <div class="form-group full">
+            <label>Description (optional)</label>
+            <input type="text" id="dep-desc" placeholder="e.g. Salary credit"/>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="doDeposit()" id="dep-btn">Deposit Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── WITHDRAW ── -->
+    <div class="page" id="page-withdraw">
+      <div class="page-header">
+        <div class="page-title">Withdraw Funds</div>
+        <div class="page-subtitle">Transfer money out of your account</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Withdrawal Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Account Number</label>
+            <input type="number" id="wd-acct" readonly/>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹)</label>
+            <input type="number" id="wd-amt" placeholder="0.00" min="0.01" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="wd-pass" placeholder="••••••••"/>
+          </div>
+          <div class="form-group">
+            <label>Idempotency Key</label>
+            <div class="idem-row">
+              <input type="text" id="wd-idem" placeholder="Unique transaction ID"/>
+              <button class="btn btn-outline btn-gen" onclick="genKey('wd-idem')">⟳ Gen</button>
+            </div>
+          </div>
+          <div class="form-group full">
+            <label>Description (optional)</label>
+            <input type="text" id="wd-desc" placeholder="e.g. Rent payment"/>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="doWithdraw()" id="wd-btn">Withdraw Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TRANSFER ── -->
+    <div class="page" id="page-transfer">
+      <div class="page-header">
+        <div class="page-title">Transfer Funds</div>
+        <div class="page-subtitle">Send money to another account</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Transfer Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Your Account (Sender)</label>
+            <input type="number" id="tr-sender" readonly/>
+          </div>
+          <div class="form-group">
+            <label>Recipient Account Number</label>
+            <input type="number" id="tr-receiver" placeholder="Enter receiver's account no."/>
+          </div>
+          <div class="form-group">
+            <label>Amount (₹)</label>
+            <input type="number" id="tr-amt" placeholder="0.00" min="0.01" step="0.01"/>
+          </div>
+          <div class="form-group">
+            <label>Your Password</label>
+            <input type="password" id="tr-pass" placeholder="••••••••"/>
+          </div>
+          <div class="form-group full">
+            <label>Idempotency Key</label>
+            <div class="idem-row">
+              <input type="text" id="tr-idem" placeholder="Unique transaction ID"/>
+              <button class="btn btn-outline btn-gen" onclick="genKey('tr-idem')">⟳ Gen</button>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="doTransfer()" id="tr-btn">Send Transfer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STATEMENT ── -->
+    <div class="page" id="page-statement">
+      <div class="page-header">
+        <div class="page-title">Account Statement</div>
+        <div class="page-subtitle">Last 20 transactions</div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-title">Authenticate to View</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Account Number</label>
+            <input type="number" id="st-acct" readonly/>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="st-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doStatement()"/>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="doStatement()" id="st-btn">Load Statement</button>
+        </div>
+      </div>
+
+      <div id="st-result" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Txn ID</th>
+                <th>Type</th>
+                <th>Action</th>
+                <th>Amount</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="st-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="st-empty" class="empty" style="display:none;">
+        <div class="empty-icon">📭</div>
+        No transactions found for this account.
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast">
+  <span class="toast-icon" id="toast-icon"></span>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════
+const API = 'http://localhost:8000';
+
+// ══════════════════════════════════════════════════════════
+//  SESSION STATE
+// ══════════════════════════════════════════════════════════
+let session = { accountNumber: null, password: null, name: null, email: null };
+
+function saveSession(acct, pass, name, email) {
+  session = { accountNumber: acct, password: pass, name, email };
+  document.getElementById('sidebar-acct').textContent = `#${acct} — ${name}`;
+  // Prefill locked fields
+  ['dep-acct','wd-acct','tr-sender','st-acct'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = acct;
+  });
+  ['dep-pass','wd-pass'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = pass;
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  const i = document.getElementById('toast-icon');
+  document.getElementById('toast-msg').textContent = msg;
+  i.textContent = type === 'success' ? '✓' : '✕';
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 4000);
+}
+
+// ══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(n => { if (n.textContent.trim().toLowerCase().includes(name === 'dashboard' ? 'dashboard' : name)) n.classList.add('active'); });
+  if (name === 'dashboard') loadBalance();
+}
+
+// ══════════════════════════════════════════════════════════
+//  API HELPER
+// ══════════════════════════════════════════════════════════
+async function apiCall(endpoint, body) {
+  const res = await fetch(`${API}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Request failed');
+  return data;
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<span class="spinner"></span> Please wait…'
+    : btn.dataset.label || btn.textContent;
+  if (!loading && !btn.dataset.label) btn.dataset.label = btn.textContent;
+}
+
+// ══════════════════════════════════════════════════════════
+//  LOGIN GATE
+// ══════════════════════════════════════════════════════════
+function switchLoginTab(tab) {
+  document.querySelectorAll('.tabs .tab').forEach((t,i) => t.classList.toggle('active', (tab==='signin'&&i===0)||(tab==='register'&&i===1)));
+  document.getElementById('login-signin').style.display = tab === 'signin' ? '' : 'none';
+  document.getElementById('login-register').style.display = tab === 'register' ? '' : 'none';
+}
+
+async function doLogin() {
+  const acct = parseInt(document.getElementById('l-acct').value);
+  const pass = document.getElementById('l-pass').value.trim();
+  if (!acct || !pass) { toast('Please enter account number and password.', 'error'); return; }
+  setLoading('login-btn', true);
+  try {
+    const data = await apiCall('/user_balance', { account_number: acct, password: pass });
+    saveSession(acct, pass, data.account_holder_name, '');
+    document.getElementById('login-gate').style.display = 'none';
+    updateDashboard(data.balance, data.account_holder_name, acct, '');
+    toast(`Welcome back, ${data.account_holder_name}!`);
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('login-btn', false);
+  }
+}
+
+async function doRegister() {
+  const name  = document.getElementById('r-name').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const pass  = document.getElementById('r-pass').value.trim();
+  if (!name || !email || !pass) { toast('Please fill all fields.', 'error'); return; }
+  setLoading('reg-btn', true);
+  try {
+    const data = await apiCall('/create_account', { account_holder_name: name, email, password: pass });
+    toast(`Account created! Your account number is: ${data.account_number}`, 'success');
+    document.getElementById('r-name').value = '';
+    document.getElementById('r-email').value = '';
+    document.getElementById('r-pass').value = '';
+    document.getElementById('l-acct').value = data.account_number;
+    switchLoginTab('signin');
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('reg-btn', false);
+  }
+}
+
+function doLogout() {
+  session = {};
+  document.getElementById('login-gate').style.display = 'flex';
+  document.getElementById('l-acct').value = '';
+  document.getElementById('l-pass').value = '';
+}
+
+// ══════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════
+function updateDashboard(balance, name, acct, email) {
+  document.getElementById('dash-balance').textContent = `₹${parseFloat(balance).toLocaleString('en-IN', {minimumFractionDigits:2})}`;
+  document.getElementById('dash-name').textContent = name;
+  document.getElementById('stat-acct').textContent = `#${acct}`;
+  document.getElementById('stat-email').textContent = email || session.email || '—';
+  document.getElementById('stat-status').textContent = 'Active';
+}
+
+async function loadBalance() {
+  if (!session.accountNumber) return;
+  try {
+    const data = await apiCall('/user_balance', { account_number: session.accountNumber, password: session.password });
+    updateDashboard(data.balance, data.account_holder_name, session.accountNumber, session.email);
+  } catch(e) { /* silent */ }
+}
+
+// ══════════════════════════════════════════════════════════
+//  IDEMPOTENCY KEY GENERATOR
+// ══════════════════════════════════════════════════════════
+function genKey(fieldId) {
+  const key = 'txn-' + Date.now() + '-' + Math.random().toString(36).slice(2,8).toUpperCase();
+  document.getElementById(fieldId).value = key;
+}
+
+// ══════════════════════════════════════════════════════════
+//  DEPOSIT
+// ══════════════════════════════════════════════════════════
+async function doDeposit() {
+  const acct = parseInt(document.getElementById('dep-acct').value);
+  const amt  = parseFloat(document.getElementById('dep-amt').value);
+  const pass = document.getElementById('dep-pass').value || session.password;
+  const idem = document.getElementById('dep-idem').value.trim();
+  const desc = document.getElementById('dep-desc').value.trim();
+
+  if (!amt || amt <= 0) { toast('Enter a valid amount.', 'error'); return; }
+  if (!idem) { toast('Generate or enter an idempotency key.', 'error'); return; }
+  if (!pass) { toast('Password is required.', 'error'); return; }
+
+  setLoading('dep-btn', true);
+  try {
+    const data = await apiCall('/deposit', {
+      account_number: acct, amount: amt,
+      password: pass, idempotency_key: idem,
+      description: desc || null
+    });
+    toast(`${data.message} — New balance: ₹${parseFloat(data.new_balance).toLocaleString('en-IN',{minimumFractionDigits:2})}`);
+    document.getElementById('dep-amt').value = '';
+    document.getElementById('dep-idem').value = '';
+    document.getElementById('dep-desc').value = '';
+    loadBalance();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('dep-btn', false);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  WITHDRAW
+// ══════════════════════════════════════════════════════════
+async function doWithdraw() {
+  const acct = parseInt(document.getElementById('wd-acct').value);
+  const amt  = parseFloat(document.getElementById('wd-amt').value);
+  const pass = document.getElementById('wd-pass').value || session.password;
+  const idem = document.getElementById('wd-idem').value.trim();
+  const desc = document.getElementById('wd-desc').value.trim();
+
+  if (!amt || amt <= 0) { toast('Enter a valid amount.', 'error'); return; }
+  if (!idem) { toast('Generate or enter an idempotency key.', 'error'); return; }
+  if (!pass) { toast('Password is required.', 'error'); return; }
+
+  setLoading('wd-btn', true);
+  try {
+    const data = await apiCall('/withdraw', {
+      account_number: acct, amount: amt,
+      password: pass, idempotency_key: idem,
+      description: desc || null
+    });
+    toast(`${data.message} — New balance: ₹${parseFloat(data.new_balance).toLocaleString('en-IN',{minimumFractionDigits:2})}`);
+    document.getElementById('wd-amt').value = '';
+    document.getElementById('wd-idem').value = '';
+    document.getElementById('wd-desc').value = '';
+    loadBalance();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('wd-btn', false);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  TRANSFER
+// ══════════════════════════════════════════════════════════
+async function doTransfer() {
+  const sender   = parseInt(document.getElementById('tr-sender').value);
+  const receiver = parseInt(document.getElementById('tr-receiver').value);
+  const amt      = parseFloat(document.getElementById('tr-amt').value);
+  const pass     = document.getElementById('tr-pass').value || session.password;
+  const idem     = document.getElementById('tr-idem').value.trim();
+
+  if (!receiver) { toast('Enter the recipient account number.', 'error'); return; }
+  if (!amt || amt <= 0) { toast('Enter a valid amount.', 'error'); return; }
+  if (!idem) { toast('Generate or enter an idempotency key.', 'error'); return; }
+  if (!pass) { toast('Password is required.', 'error'); return; }
+
+  setLoading('tr-btn', true);
+  try {
+    const data = await apiCall('/transfer', {
+      sender_account_no: sender, receiver_account_no: receiver,
+      amount: amt, sender_password: pass, idempotency_key: idem
+    });
+    toast(`${data.message}`);
+    document.getElementById('tr-receiver').value = '';
+    document.getElementById('tr-amt').value = '';
+    document.getElementById('tr-idem').value = '';
+    document.getElementById('tr-pass').value = '';
+    loadBalance();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('tr-btn', false);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  STATEMENT
+// ══════════════════════════════════════════════════════════
+async function doStatement() {
+  const acct = parseInt(document.getElementById('st-acct').value);
+  const pass = document.getElementById('st-pass').value || session.password;
+  if (!pass) { toast('Password is required.', 'error'); return; }
+
+  setLoading('st-btn', true);
+  try {
+    const data = await apiCall('/statement', { account_number: acct, password: pass });
+    renderStatement(data);
+    // Update dashboard recent txns
+    renderDashTxns(data.slice(0,5));
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    setLoading('st-btn', false);
+  }
+}
+
+function renderStatement(rows) {
+  document.getElementById('st-result').style.display = rows.length ? '' : 'none';
+  document.getElementById('st-empty').style.display  = rows.length ? 'none' : '';
+  const tbody = document.getElementById('st-tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const amt = parseFloat(r.amount);
+    const cls = amt >= 0 ? 'amt-pos' : 'amt-neg';
+    const sign = amt >= 0 ? '+' : '';
+    const typeClass = `txn-${(r.action || r.type || '').toLowerCase()}`;
+    const actionLabel = (r.action || r.type || '—').replace('_', ' ');
+    const date = new Date(r.timestamp).toLocaleString('en-IN', {dateStyle:'medium', timeStyle:'short'});
+    tbody.innerHTML += `
+      <tr>
+        <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${date}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px">#${r.transaction_id}</td>
+        <td><span class="txn-type txn-${(r.type||'').toLowerCase()}">${(r.type||'—')}</span></td>
+        <td><span class="txn-type ${typeClass}">${actionLabel}</span></td>
+        <td class="${cls}">${sign}₹${Math.abs(amt).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+        <td style="color:var(--muted);font-size:12px">${r.description || '—'}</td>
+      </tr>`;
+  });
+}
+
+function renderDashTxns(rows) {
+  const container = document.getElementById('dash-txns');
+  if (!rows.length) { container.innerHTML = '<div class="empty"><div class="empty-icon">📄</div>No transactions yet.</div>'; return; }
+  let html = '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Action</th><th>Amount</th><th>Note</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const amt = parseFloat(r.amount);
+    const cls = amt >= 0 ? 'amt-pos' : 'amt-neg';
+    const sign = amt >= 0 ? '+' : '';
+    const typeClass = `txn-${(r.action || r.type || '').toLowerCase()}`;
+    const actionLabel = (r.action || r.type || '—').replace('_', ' ');
+    const date = new Date(r.timestamp).toLocaleDateString('en-IN', {month:'short', day:'numeric'});
+    html += `<tr>
+      <td style="font-size:12px;color:var(--muted)">${date}</td>
+      <td><span class="txn-type ${typeClass}">${actionLabel}</span></td>
+      <td class="${cls}">${sign}₹${Math.abs(amt).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+      <td style="color:var(--muted);font-size:12px">${r.description || '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════
+//  INIT — auto-generate idempotency keys on page load
+// ══════════════════════════════════════════════════════════
+genKey('dep-idem');
+genKey('wd-idem');
+genKey('tr-idem');
+</script>
+</body>
+</html>
